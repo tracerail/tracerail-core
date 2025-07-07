@@ -1,135 +1,39 @@
 """
-TraceRail Core SDK
+TraceRail Core Library
+======================
 
-A production-ready library for AI workflow systems with human-in-the-loop task management.
-Built on Temporal for reliability and scalability.
+This is the central library for the TraceRail platform, containing the core
+business logic, domain models, and workflow definitions.
 
-Example usage:
-    import tracerail
+This __init__.py file exposes the primary "public API" of the library,
+allowing other services to import key components directly from the `tracerail`
+package, simplifying development in consuming projects like the task bridge.
 
-    # Simple usage
-    client = tracerail.create_client()
-    result = await client.process_content("Analyze this document...")
-
-    # Advanced usage with a custom workflow
-    class MyWorkflow(tracerail.BaseAIWorkflow):
-        async def run(self, input_data):
-            llm_result = await self.process_with_llm(input_data)
-            if self.routing_says_human(llm_result):
-                return await self.wait_for_human_decision(llm_result)
-            return llm_result
+Example:
+    from tracerail import CaseService, FlexibleCaseWorkflow
 """
 
-# --- Metadata ---
-__version__ = "1.0.0-alpha.1"
-__author__ = "TraceRail Team <team@tracerail.io>"
-__description__ = "Core SDK for AI workflow systems with human-in-the-loop task management"
-__url__ = "https://github.com/tracerail/tracerail-core"
-
-
-# --- Core Client and Configuration ---
-# Note: These imports will fail until all modules are created.
-from .client import TraceRail, create_client, create_client_async
-from .config import TraceRailConfig
-
-# --- Core Exceptions ---
-from .exceptions import (
-    TraceRailException,
-    TraceRailError,
-    ConfigurationError,
-    LLMError,
-    RoutingError,
-    TaskError,
+# Expose the primary domain models and services from the `domain` module.
+from .domain.cases import (
+    Case,
+    CaseDetails,
+    CaseService,
+    ActivityStreamItem,
+    ActiveInteraction,
 )
 
-# --- LLM Module ---
-from .llm import (
-    BaseLLMProvider,
-    LLMProvider,
-    LLMRequest,
-    LLMResponse,
-    LLMMessage,
-    LLMUsage,
-    LLMCapabilities,
-    create_llm_provider,
-)
+# Expose the primary workflow definition from the `workflows` module.
+from .workflows.flexible_case_workflow import FlexibleCaseWorkflow
 
-# --- Routing Module ---
-from .routing import (
-    BaseRoutingEngine,
-    RoutingContext,
-    RoutingResult,
-    RoutingDecision,
-    create_routing_engine,
-)
-
-# --- Task Management Module ---
-from .tasks import (
-    BaseTaskManager,
-    TaskData,
-    TaskResult,
-    TaskStatus,
-    TaskPriority,
-    create_task_manager,
-)
-
-# --- Temporal Integration ---
-from .temporal import BaseAIWorkflow, TemporalWorkflowError, ActivityError
-
-
-# --- Public API Definition (`__all__`) ---
+# Define the explicit public API of the 'tracerail' package.
+# When a consumer runs `from tracerail import *`, only these names will be
+# imported. This also serves as clear documentation for what parts of the
+# library are intended for public use.
 __all__ = [
-    # Metadata
-    "__version__",
-    "get_version",
-
-    # Main Client & Config
-    "TraceRail",
-    "create_client",
-    "create_client_async",
-    "TraceRailConfig",
-
-    # Core Exceptions
-    "TraceRailException",
-    "TraceRailError",
-    "ConfigurationError",
-    "LLMError",
-    "RoutingError",
-    "TaskError",
-
-    # LLM Components
-    "BaseLLMProvider",
-    "LLMProvider",
-    "LLMRequest",
-    "LLMResponse",
-    "LLMMessage",
-    "LLMUsage",
-    "LLMCapabilities",
-    "create_llm_provider",
-
-    # Routing Components
-    "BaseRoutingEngine",
-    "RoutingContext",
-    "RoutingResult",
-    "RoutingDecision",
-    "create_routing_engine",
-
-    # Task Components
-    "BaseTaskManager",
-    "TaskData",
-    "TaskResult",
-    "TaskStatus",
-    "TaskPriority",
-    "create_task_manager",
-
-    # Temporal Components
-    "BaseAIWorkflow",
-    "TemporalWorkflowError",
-    "ActivityError",
+    "Case",
+    "CaseDetails",
+    "CaseService",
+    "ActivityStreamItem",
+    "ActiveInteraction",
+    "FlexibleCaseWorkflow",
 ]
-
-# --- Convenience Functions ---
-
-def get_version():
-    """Return the current version of the TraceRail Core SDK."""
-    return __version__
