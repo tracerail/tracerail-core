@@ -38,6 +38,7 @@ pydantic = "^2.5.0"
 rich = "^13.7.0"
 pyyaml = "^6.0.1"
 typing-extensions = "^4.8.0"
+pydantic-settings = "^2.3.4"
 
 
 # Optional dependencies for specific providers/features

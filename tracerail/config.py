@@ -1,21 +1,21 @@
 """
 TraceRail Configuration
 
-This module defines the configuration models for the TraceRail Core SDK using Pydantic.
-It allows for configuration via environment variables, files, or direct instantiation.
+This module defines the configuration models for the TraceRail Core SDK using
+Pydantic's settings management. It allows for hierarchical configuration
+loaded from environment variables, providing a robust and type-safe way to
+configure the application.
 """
-import os
+
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, SecretStr
-from dotenv import load_dotenv
-
-# Load environment variables from a .env file if it exists
-load_dotenv()
+from pydantic import Field, SecretStr, AliasChoices
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 # --- Enums for Configuration Choices ---
+
 
 class LLMProvider(str, Enum):
     """Enumeration of supported LLM providers."""
@@ -38,144 +38,94 @@ class TaskManagerType(str, Enum):
     TEMPORAL = "temporal"
 
 
-# --- Configuration Models ---
+# --- Leaf Configuration Models ---
+# These models inherit from BaseSettings and are configured to ignore extra
+# fields that might be passed down from the parent configuration's environment
+# variable parsing.
 
-class LLMConfig(BaseModel):
+
+class LLMConfig(BaseSettings):
     """Configuration for LLM providers."""
-    provider: LLMProvider = Field(
-        default=LLMProvider.DEEPSEEK,
-        description="The LLM provider to use.",
-        json_schema_extra={"env": "TRACERAIL_LLM_PROVIDER"},
-    )
+    model_config = SettingsConfigDict(extra='ignore')
+
+    provider: LLMProvider = LLMProvider.DEEPSEEK
+    # This field specifically looks for non-prefixed keys, which is useful for
+    # picking up credentials from standard shell environments.
     api_key: Optional[SecretStr] = Field(
         default=None,
-        description="API key for the selected LLM provider.",
-        json_schema_extra={
-            "env": ["DEEPSEEK_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "AZURE_OPENAI_API_KEY"]
-        },  # Pydantic will check these in order
+        validation_alias=AliasChoices(
+            "DEEPSEEK_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "AZURE_OPENAI_API_KEY"
+        ),
     )
-    base_url: Optional[str] = Field(
-        default=None,
-        description="Base URL for the LLM provider API, for proxies or custom deployments."
-    )
-    model: Optional[str] = Field(
-        default=None,
-        description="The specific model to use (e.g., 'gpt-4-turbo')."
-    )
-    temperature: Optional[float] = Field(
-        default=0.7,
-        description="Default temperature for LLM responses."
-    )
-    max_tokens: Optional[int] = Field(
-        default=2048,
-        description="Default maximum tokens for LLM responses."
-    )
-    timeout: int = Field(
-        default=60,
-        description="Request timeout in seconds."
-    )
-    max_retries: int = Field(
-        default=3,
-        description="Maximum number of retry attempts for failed requests."
-    )
-    retry_delay: float = Field(
-        default=1.0,
-        description="Initial delay between retries in seconds."
-    )
-    provider_config: Dict[str, Any] = Field(
-        default_factory=dict,
-        description="Additional provider-specific configuration."
-    )
+    base_url: Optional[str] = None
+    model: Optional[str] = None
+    temperature: float = 0.7
+    max_tokens: int = 2048
+    timeout: int = 60
+    max_retries: int = 3
+    retry_delay: float = 1.0
+    provider_config: Dict[str, Any] = Field(default_factory=dict)
 
 
-class RoutingConfig(BaseModel):
+class RoutingConfig(BaseSettings):
     """Configuration for the routing engine."""
-    engine_type: RoutingEngine = Field(
-        default=RoutingEngine.RULES,
-        description="The type of routing engine to use.",
-        json_schema_extra={"env": "TRACERAIL_ROUTING_ENGINE"},
-    )
-    confidence_threshold: float = Field(
-        default=0.8,
-        description="Confidence score threshold for automatic processing."
-    )
-    fallback_to_human: bool = Field(
-        default=True,
-        description="Whether to fall back to human review if routing is uncertain."
-    )
-    engine_config: Dict[str, Any] = Field(
-        default_factory=dict,
-        description="Additional engine-specific configuration (e.g., rules file path)."
-    )
+    model_config = SettingsConfigDict(extra='ignore')
+
+    engine_type: RoutingEngine = RoutingEngine.RULES
+    confidence_threshold: float = 0.8
+    fallback_to_human: bool = True
+    engine_config: Dict[str, Any] = Field(default_factory=dict)
 
 
-class TaskConfig(BaseModel):
+class TaskConfig(BaseSettings):
     """Configuration for the task management system."""
-    enabled: bool = Field(
-        default=True,
-        description="Enable or disable the task management system.",
-        json_schema_extra={"env": "TRACERAIL_TASKS_ENABLED"},
-    )
-    manager_type: TaskManagerType = Field(
-        default=TaskManagerType.MEMORY,
-        description="The type of task manager to use.",
-        json_schema_extra={"env": "TRACERAIL_TASK_MANAGER_TYPE"},
-    )
-    default_sla_hours: int = Field(
-        default=24,
-        description="Default Service Level Agreement (SLA) in hours for tasks."
-    )
-    assignment_strategy: str = Field(
-        default="round_robin",
-        description="Default strategy for assigning tasks (e.g., 'round_robin', 'skill_based')."
-    )
-    # Sub-component configurations
+    model_config = SettingsConfigDict(extra='ignore')
+
+    enabled: bool = True
+    manager_type: TaskManagerType = TaskManagerType.MEMORY
+    default_sla_hours: int = 24
+    assignment_strategy: str = "round_robin"
     manager_config: Dict[str, Any] = Field(default_factory=dict)
     assignment_config: Dict[str, Any] = Field(default_factory=dict)
-    sla_manager: str = Field(default="basic", description="The SLA manager to use.")
+    sla_manager: str = "basic"
     sla_config: Dict[str, Any] = Field(default_factory=dict)
-    escalation_policy: str = Field(default="basic", description="The escalation policy to use.")
+    escalation_policy: str = "basic"
     escalation_config: Dict[str, Any] = Field(default_factory=dict)
-    notification_service: str = Field(default="basic", description="The notification service to use.")
+    notification_service: str = "basic"
     notification_config: Dict[str, Any] = Field(default_factory=dict)
 
 
-class TemporalConfig(BaseModel):
+class TemporalConfig(BaseSettings):
     """Configuration for the Temporal client."""
-    host: str = Field(
-        default="localhost",
-        description="The host for the Temporal service.",
-        json_schema_extra={"env": "TEMPORAL_HOST"},
-    )
-    port: int = Field(
-        default=7233,
-        description="The port for the Temporal service.",
-        json_schema_extra={"env": "TEMPORAL_PORT"},
-    )
-    namespace: str = Field(
-        default="default",
-        description="The Temporal namespace to use.",
-        json_schema_extra={"env": "TEMPORAL_NAMESPACE"},
-    )
-    task_queue: str = Field(
-        default="tracerail-task-queue",
-        description="The default task queue for workflows.",
-        json_schema_extra={"env": "TEMPORAL_TASK_QUEUE"},
-    )
+    model_config = SettingsConfigDict(extra='ignore')
+
+    host: str = "localhost"
+    port: int = 7233
+    namespace: str = "default"
+    task_queue: str = "tracerail-task-queue"
 
 
-class TraceRailConfig(BaseModel):
+# --- Root Configuration Model ---
+
+
+class TraceRailConfig(BaseSettings):
     """
     Main configuration for the TraceRail client.
-    This model composes all other configuration models.
+    This model composes all other configuration models and enables nested
+    environment variable loading.
     """
+    # These fields will be populated by Pydantic using nested environment variables.
+    # For example, `TRACERAIL_LLM__PROVIDER` will map to `config.llm.provider`.
     llm: LLMConfig = Field(default_factory=LLMConfig)
     routing: RoutingConfig = Field(default_factory=RoutingConfig)
     tasks: TaskConfig = Field(default_factory=TaskConfig)
     temporal: TemporalConfig = Field(default_factory=TemporalConfig)
 
-    model_config = ConfigDict(
-        env_nested_delimiter="_",
+    # Configure Pydantic to look for environment variables with a specific prefix
+    # and use "__" as the delimiter for nested models.
+    model_config = SettingsConfigDict(
         env_prefix="TRACERAIL_",
+        env_nested_delimiter="__",
+        extra='ignore',
         protected_namespaces=(),
     )

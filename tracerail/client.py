@@ -9,6 +9,8 @@ import logging
 import time
 from typing import Any, Dict, Optional
 
+from temporalio.client import WorkflowHandle
+
 from .config import TraceRailConfig
 from .exceptions import TraceRailError, TaskError
 from .llm.base import BaseLLMProvider, LLMRequest, LLMResponse
@@ -177,6 +179,49 @@ class TraceRail:
         processing_time_ms = (time.time() - start_time) * 1000
         return ProcessingResult(
             llm_response, routing_decision, task_result, processing_time_ms
+        )
+
+    async def start_workflow(
+        self,
+        workflow: Any,
+        arg: Any,
+        *,
+        id: str,
+        task_queue: Optional[str] = None,
+        **kwargs: Any,
+    ) -> WorkflowHandle:
+        """
+        Starts a new Temporal workflow execution.
+
+        This method is a convenient wrapper around the underlying Temporal client's
+        `start_workflow` method, using the client's configuration for defaults.
+
+        Args:
+            workflow: The workflow function or `ClassName.run` to execute.
+            arg: The single argument to pass to the workflow.
+            id: A unique business ID for the workflow execution.
+            task_queue: The task queue to run on. If None, uses the queue from config.
+            **kwargs: Additional options to pass to Temporal's `start_workflow`.
+
+        Returns:
+            A handle to the started workflow execution.
+        """
+        from .temporal.client import get_temporal_client
+
+        self._ensure_initialized()
+
+        # Get a connection to the temporal service
+        temporal_client = await get_temporal_client(self.config.temporal)
+
+        # Use the provided task_queue, or fall back to the one in the config
+        final_task_queue = task_queue or self.config.temporal.task_queue
+
+        return await temporal_client.start_workflow(
+            workflow,
+            arg,
+            id=id,
+            task_queue=final_task_queue,
+            **kwargs,
         )
 
     def _determine_task_priority(self, routing_result: RoutingResult) -> TaskPriority:

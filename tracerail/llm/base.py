@@ -8,13 +8,15 @@ interacting with Large Language Models (LLMs) in the TraceRail Core SDK.
 import logging
 import uuid
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional, AsyncGenerator
 
+from pydantic import BaseModel, Field, model_validator
+
 logger = logging.getLogger(__name__)
 
-# --- Enums and Simple Data Classes ---
+# --- Enums and Pydantic Models ---
+
 
 class LLMCapability(Enum):
     """Enumeration of capabilities an LLM provider might have."""
@@ -24,29 +26,33 @@ class LLMCapability(Enum):
     FUNCTION_CALLING = "function_calling"
     EMBEDDINGS = "embeddings"
 
-@dataclass
-class LLMUsage:
+
+class LLMUsage(BaseModel):
     """Data class for tracking token usage in an LLM interaction."""
+
     prompt_tokens: int = 0
     completion_tokens: int = 0
     total_tokens: int = 0
-    total_cost: Optional[float] = None  # Optional field for cost estimation
+    total_cost: Optional[float] = None
 
-    def __post_init__(self):
+    @model_validator(mode="after")
+    def calculate_total_tokens(self) -> "LLMUsage":
         """Calculate total_tokens if not provided."""
         if self.total_tokens == 0 and self.prompt_tokens > 0 and self.completion_tokens > 0:
             self.total_tokens = self.prompt_tokens + self.completion_tokens
+        return self
 
-@dataclass
-class LLMCapabilities:
+
+class LLMCapabilities(BaseModel):
     """Describes the capabilities of an LLM provider."""
-    supported_capabilities: List[LLMCapability] = field(default_factory=list)
+
+    supported_capabilities: List[LLMCapability] = Field(default_factory=list)
     max_context_length: Optional[int] = None
     max_output_tokens: Optional[int] = None
     requests_per_minute: Optional[int] = None
     model_name: Optional[str] = None
     model_version: Optional[str] = None
-    provider_info: Dict[str, Any] = field(default_factory=dict)
+    provider_info: Dict[str, Any] = Field(default_factory=dict)
 
     def supports_streaming(self) -> bool:
         """Check if the provider supports streaming responses."""
@@ -56,64 +62,65 @@ class LLMCapabilities:
         """Check if the provider supports function calling."""
         return LLMCapability.FUNCTION_CALLING in self.supported_capabilities
 
-@dataclass
-class LLMMessage:
+
+class LLMMessage(BaseModel):
     """Represents a single message in a conversation history."""
+
     role: str  # e.g., "user", "assistant", "system"
     content: str
 
     def to_dict(self) -> Dict[str, str]:
         """Serializes the message to a dictionary."""
-        return {"role": self.role, "content": self.content}
+        return self.model_dump()
+
 
 # --- Core Request and Response Models ---
 
-@dataclass
-class LLMRequest:
+
+class LLMRequest(BaseModel):
     """Encapsulates a request to be sent to an LLM provider."""
+
     content: Optional[str] = None  # The primary content for simple requests
-    messages: List[LLMMessage] = field(default_factory=list)
+    messages: List[LLMMessage] = Field(default_factory=list)
     model: Optional[str] = None
     temperature: Optional[float] = None
     max_tokens: Optional[int] = None
     top_p: Optional[float] = None
     frequency_penalty: Optional[float] = None
     presence_penalty: Optional[float] = None
-    request_id: str = field(default_factory=lambda: str(uuid.uuid4()))
-    context: Dict[str, Any] = field(default_factory=dict) # For additional context like system prompts
+    request_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    context: Dict[str, Any] = Field(
+        default_factory=dict
+    )  # For additional context like system prompts
 
-    def __post_init__(self):
+    @model_validator(mode="after")
+    def ensure_content_or_messages(self) -> "LLMRequest":
         """Ensure either content or messages are provided."""
         if self.content and not self.messages:
             self.messages.append(LLMMessage(role="user", content=self.content))
         if not self.content and not self.messages:
             raise ValueError("Either 'content' or 'messages' must be provided.")
+        return self
 
 
-@dataclass
-class LLMResponse:
+class LLMResponse(BaseModel):
     """Encapsulates a response received from an LLM provider."""
+
     content: str
     model: Optional[str] = None
     usage: Optional[LLMUsage] = None
     finish_reason: Optional[str] = None
     response_time_ms: Optional[float] = None
     request_id: Optional[str] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
         """Serializes the response to a dictionary."""
-        return {
-            "content": self.content,
-            "model": self.model,
-            "usage": self.usage.__dict__ if self.usage else None,
-            "finish_reason": self.finish_reason,
-            "response_time_ms": self.response_time_ms,
-            "request_id": self.request_id,
-            "metadata": self.metadata,
-        }
+        return self.model_dump(mode="json")
+
 
 # --- Abstract Base Class for Providers ---
+
 
 class BaseLLMProvider(ABC):
     """
@@ -128,7 +135,7 @@ class BaseLLMProvider(ABC):
         timeout: int = 60,
         max_retries: int = 3,
         retry_delay: float = 1.0,
-        **kwargs
+        **kwargs,
     ):
         """
         Initializes the base provider.
@@ -148,7 +155,7 @@ class BaseLLMProvider(ABC):
         self.timeout = timeout
         self.max_retries = max_retries
         self.config = kwargs
-        self._client: Optional[Any] = None # To be initialized by subclasses
+        self._client: Optional[Any] = None  # To be initialized by subclasses
         logger.info(f"BaseLLMProvider '{self.provider_name}' instance created.")
 
     @abstractmethod

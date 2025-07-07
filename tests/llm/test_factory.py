@@ -1,12 +1,16 @@
-"""Test cases for the LLM factory module."""
+"""
+Test cases for the LLM factory module, using pydantic-settings.
+"""
 
 import pytest
 from pydantic import ValidationError
-from unittest.mock import patch
 
-from tracerail.config import LLMConfig, LLMProvider
-from tracerail.llm.exceptions import LLMConfigurationError
+# Import the config models and the factory function we are testing
+from tracerail.config import TraceRailConfig
 from tracerail.llm.factory import create_llm_provider
+from tracerail.llm.exceptions import LLMConfigurationError
+
+# Import the provider classes to check the type of the created provider
 from tracerail.llm.providers.anthropic import AnthropicProvider
 from tracerail.llm.providers.azure_openai import AzureOpenAIProvider
 from tracerail.llm.providers.deepseek import DeepSeekProvider
@@ -14,60 +18,109 @@ from tracerail.llm.providers.openai import OpenAIProvider
 
 
 class TestLLMFactory:
-    """Test suite for the LLM factory functions."""
+    """
+    Test suite for the LLM factory functions.
+
+    These tests validate that the factory can create the correct provider
+    based on a configuration that is loaded from environment variables.
+    """
 
     @pytest.mark.asyncio
-    @patch.dict("os.environ", {"OPENAI_API_KEY": "test_key"})
-    async def test_create_openai_provider(self):
-        """Test creating an OpenAI provider."""
-        config = LLMConfig(provider=LLMProvider.OPENAI, api_key="test_key")
-        provider = await create_llm_provider(config)
+    async def test_create_openai_provider(self, monkeypatch):
+        """
+        Tests creating an OpenAI provider by setting environment variables.
+        """
+        # Arrange: Set env vars for the config to load
+        monkeypatch.setenv("TRACERAIL_LLM__PROVIDER", "openai")
+        monkeypatch.setenv("OPENAI_API_KEY", "test_key")
+
+        # Act: Instantiate config from env and create provider
+        config = TraceRailConfig()
+        provider = await create_llm_provider(config.llm)
+
+        # Assert
         assert isinstance(provider, OpenAIProvider)
+        assert provider.api_key == "test_key"
 
     @pytest.mark.asyncio
-    @patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test_key"})
-    async def test_create_anthropic_provider(self):
-        """Test creating an Anthropic provider."""
-        config = LLMConfig(provider=LLMProvider.ANTHROPIC, api_key="test_key")
-        provider = await create_llm_provider(config)
+    async def test_create_anthropic_provider(self, monkeypatch):
+        """
+        Tests creating an Anthropic provider by setting environment variables.
+        """
+        # Arrange
+        monkeypatch.setenv("TRACERAIL_LLM__PROVIDER", "anthropic")
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test_key")
+
+        # Act
+        config = TraceRailConfig()
+        provider = await create_llm_provider(config.llm)
+
+        # Assert
         assert isinstance(provider, AnthropicProvider)
 
     @pytest.mark.asyncio
-    @patch.dict("os.environ", {"AZURE_OPENAI_API_KEY": "test_key"})
-    async def test_create_azure_openai_provider(self):
-        """Test creating an Azure OpenAI provider."""
-        # Azure provider requires base_url and a model (deployment name)
-        config = LLMConfig(
-            provider=LLMProvider.AZURE_OPENAI,
-            api_key="test_key",
-            base_url="https://example.openai.azure.com",
-            model="my-deployment",
-        )
-        provider = await create_llm_provider(config)
+    async def test_create_azure_openai_provider(self, monkeypatch):
+        """
+        Tests creating an Azure OpenAI provider by setting environment variables.
+        """
+        # Arrange
+        monkeypatch.setenv("TRACERAIL_LLM__PROVIDER", "azure_openai")
+        monkeypatch.setenv("AZURE_OPENAI_API_KEY", "test_key")
+        # Azure provider also requires base_url and model, which are not aliased
+        # and must be loaded using the nested env var syntax.
+        monkeypatch.setenv("TRACERAIL_LLM__BASE_URL", "https://example.openai.azure.com")
+        monkeypatch.setenv("TRACERAIL_LLM__MODEL", "my-deployment")
+
+        # Act
+        # Instantiate the main config object to test nested loading
+        config = TraceRailConfig()
+        provider = await create_llm_provider(config.llm)
+
+        # Assert
         assert isinstance(provider, AzureOpenAIProvider)
+        assert provider.deployment_name == "my-deployment"
 
     @pytest.mark.asyncio
-    @patch.dict("os.environ", {"DEEPSEEK_API_KEY": "test_key"})
-    async def test_create_deepseek_provider(self):
-        """Test creating a DeepSeek provider."""
-        config = LLMConfig(provider=LLMProvider.DEEPSEEK, api_key="test_key")
-        provider = await create_llm_provider(config)
+    async def test_create_deepseek_provider(self, monkeypatch):
+        """
+        Tests creating a DeepSeek provider by setting environment variables.
+        """
+        # Arrange
+        monkeypatch.setenv("TRACERAIL_LLM__PROVIDER", "deepseek")
+        monkeypatch.setenv("DEEPSEEK_API_KEY", "test_key")
+
+        # Act
+        config = TraceRailConfig()
+        provider = await create_llm_provider(config.llm)
+
+        # Assert
         assert isinstance(provider, DeepSeekProvider)
 
-    def test_create_unsupported_provider(self):
-        """Test that creating a config with an unsupported provider raises a validation error."""
+    def test_create_unsupported_provider_from_env(self, monkeypatch):
+        """
+        Tests that creating a config with an unsupported provider from the
+        environment raises a Pydantic ValidationError.
+        """
+        # Arrange
+        monkeypatch.setenv("TRACERAIL_LLM__PROVIDER", "unsupported_provider")
+
+        # Act & Assert
         with pytest.raises(ValidationError):
-            LLMConfig(provider="unsupported_provider")
+            TraceRailConfig()
 
     @pytest.mark.asyncio
     async def test_create_with_missing_api_key(self, monkeypatch):
-        """Test creating a provider with a missing API key raises a configuration error."""
-        # Ensure the environment variable is not set for this test
+        """
+        Tests creating a provider when the required API key is not in the environment.
+        """
+        # Arrange: Ensure the provider is set but the corresponding key is not.
+        monkeypatch.setenv("TRACERAIL_LLM__PROVIDER", "openai")
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 
-        # Configure the provider to use OpenAI but explicitly provide no API key.
-        # The provider's `initialize` method should fail, and the factory should wrap the error.
-        config = LLMConfig(provider=LLMProvider.OPENAI, api_key=None)
+        # Act
+        config = TraceRailConfig()
 
+        # Assert: The provider's `initialize` method should fail, and the
+        # factory should wrap this in a specific configuration error.
         with pytest.raises(LLMConfigurationError, match="API key is required"):
-            await create_llm_provider(config)
+            await create_llm_provider(config.llm)

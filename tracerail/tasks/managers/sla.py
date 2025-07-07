@@ -47,11 +47,11 @@ class BasicSlaManager(BaseSLAManager):
         This method is typically called by the main TaskManager when a task
         is created or enters a state where SLA monitoring is required.
         """
-        if not task.due_date:
-            task.due_date = self.calculate_sla_for_task(task)
+        if not task.data.due_date:
+            task.data.due_date = self.calculate_sla_for_task(task)
 
         self._tracked_tasks[task.task_id] = task
-        logger.debug(f"SLA Manager started tracking task '{task.task_id}' with due date {task.due_date}.")
+        logger.debug(f"SLA Manager started tracking task '{task.task_id}' with due date {task.data.due_date}.")
 
     def stop_tracking_task(self, task_id: str) -> None:
         """
@@ -77,7 +77,7 @@ class BasicSlaManager(BaseSLAManager):
         """
         Checks if a single task is currently overdue.
         """
-        due_date = task.due_date
+        due_date = task.data.due_date
         if not due_date:
             # If there's no due date, it can't be overdue.
             return False
