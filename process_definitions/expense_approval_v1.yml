@@ -1,0 +1,55 @@
+# process-definitions/expense_approval_v1.yml
+# This file defines the sequence of steps for a version 1 expense approval.
+# It is a declarative representation of the business process.
+
+process_name: "expense_approval"
+process_version: "1.0.0"
+
+# The workflow engine will always start at this step.
+initial_step: "human_review_step"
+
+# A list of all possible steps in this process.
+steps:
+  - step_id: "human_review_step"
+    step_type: "human_in_the_loop"
+    description: "Waits for a human agent to review the case."
+
+    # Configuration specific to the 'human_in_the_loop' step type.
+    # This data will be used to render the UI in the Action Center.
+    configuration:
+      prompt: "Please review the initial case submission and make a decision."
+      actions:
+        - label: "Approve"
+          value: "approved"
+          style: "primary"
+        - label: "Reject"
+          value: "rejected"
+          style: "danger"
+
+    # Defines the possible paths out of this step. The engine will evaluate
+    # these transitions after the step completes (i.e., after a human submits a decision).
+    transitions:
+      # The `on` field refers to the value received from the human's decision.
+      - on: "approved"
+        next_step: "end_approved"
+      - on: "rejected"
+        next_step: "end_rejected"
+
+  - step_id: "end_approved"
+    step_type: "final_commit"
+    description: "The case has been successfully approved."
+
+    # This configuration tells the engine what the final status of the case should be.
+    configuration:
+      final_status: "Approved"
+
+    # This is a terminal step, so it has no transitions.
+
+  - step_id: "end_rejected"
+    step_type: "final_commit"
+    description: "The case has been rejected."
+
+    configuration:
+      final_status: "Rejected"
+
+    # This is a terminal step, so it has no transitions.
