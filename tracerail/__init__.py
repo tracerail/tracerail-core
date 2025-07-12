@@ -13,14 +13,16 @@ Example:
     from tracerail import CaseService, FlexibleCaseWorkflow
 """
 
-# Expose the primary domain models and services from the `domain` module.
+# Expose the primary domain models from the `domain` module.
 from .domain.cases import (
     Case,
     CaseDetails,
-    CaseService,
     ActivityStreamItem,
     ActiveInteraction,
 )
+
+# Expose the primary service from the `service` module.
+from .service.case_service import CaseService
 
 # Expose the primary workflow definition from the `workflows` module.
 from .workflows.flexible_case_workflow import FlexibleCaseWorkflow

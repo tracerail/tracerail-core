@@ -1,0 +1,26 @@
+# This Dockerfile is used to build the tracerail-core project into a distributable wheel file.
+# This is the first step in a decoupled, artifact-based build process.
+FROM python:3.11-slim
+
+# Set environment variables for Poetry.
+ENV POETRY_VERSION=1.8.2 \
+    # We don't need a virtual environment inside this build container.
+    POETRY_VIRTUALENVS_CREATE=false
+
+# Install Poetry system-wide.
+RUN pip install "poetry==$POETRY_VERSION"
+
+# Set the working directory for the build.
+WORKDIR /app
+
+# Copy the files required by Poetry to understand the project and its dependencies.
+COPY pyproject.toml poetry.lock README.md ./
+
+# Copy the actual source code for the library.
+COPY tracerail/ ./tracerail/
+
+# Run the build command.
+# This will create the .whl file in the 'dist' directory.
+RUN poetry build --format=wheel
+
+# The resulting image will have the built wheel at /app/dist/*.whl

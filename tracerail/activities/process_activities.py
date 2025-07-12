@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 import yaml
 from temporalio import activity
@@ -24,25 +25,27 @@ async def load_process_definition(process_name: str, version: str) -> dict:
         version=version,
     )
 
-    # For local development, we assume the definitions are in a sibling directory
-    # to the `tracerail-core` project. This path needs to be updated for
-    # containerized environments.
-    # A more robust solution would use an absolute path from an env var.
     # The filename convention is assumed to be `process_name_v_version.yml`.
     filename = f"{process_name}_v{version}.yml".replace(".", "_")
 
-    # This relative path is fragile and assumes execution from the root of the monorepo-style layout.
-    # It will need to be configured correctly in the running environment (e.g., Docker WORKDIR).
-    # We will search for the file in a conventional location.
-    # Let's assume the definitions are mounted at `/app/process_definitions` in the container.
-    definitions_dir = Path(activity.info().env.get("PROCESS_DEFINITIONS_PATH", "/app/process_definitions"))
+    # The worker's environment provides the path to the process definitions directory.
+    # This makes the activity configurable and testable.
+    definitions_path = os.getenv("PROCESS_DEFINITIONS_PATH", "process_definitions")
+    definitions_dir = Path(definitions_path)
 
     process_file = definitions_dir / filename
 
     activity.logger.info("Attempting to load from path", path=str(process_file))
 
     if not process_file.exists():
-        raise FileNotFoundError(f"Process definition not found at {process_file}")
+        # In a container, the current working directory is /app.
+        # We'll check for the definitions relative to that as a fallback.
+        process_file_app = Path("/app") / definitions_dir / filename
+        if process_file_app.exists():
+            process_file = process_file_app
+        else:
+             raise FileNotFoundError(f"Process definition not found at '{process_file}' or '{process_file_app}'")
+
 
     with open(process_file, 'r') as f:
         definition = yaml.safe_load(f)

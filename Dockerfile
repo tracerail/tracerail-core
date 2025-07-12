@@ -15,13 +15,13 @@ RUN pip install "poetry==$POETRY_VERSION"
 WORKDIR /app
 
 # Copy the project files and install dependencies.
-# This is done first to leverage Docker's layer caching, making subsequent
-# builds much faster if dependencies haven't changed.
-COPY pyproject.toml poetry.lock ./
+# The paths are relative to the build context, which is the monorepo root.
+COPY tracerail-core/pyproject.toml tracerail-core/poetry.lock ./
 RUN poetry install --only main
 
 # Copy the application source code into the container.
-COPY tracerail/ ./tracerail/
+# The path is relative to the build context.
+COPY tracerail-core/tracerail/ ./tracerail/
 
 # Set the command to run when the container starts.
 # We use `python -m tracerail.worker` to run the worker as a module, which

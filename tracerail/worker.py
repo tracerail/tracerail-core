@@ -16,7 +16,10 @@ from temporalio.contrib.opentelemetry import TracingInterceptor
 
 # Import the workflow that this worker will run.
 from tracerail.workflows.flexible_case_workflow import FlexibleCaseWorkflow
+
+# Import all activities the workflow might call.
 from tracerail.activities.case_activities import enrich_case_data
+from tracerail.activities.process_activities import load_process_definition
 from tracerail.tracing import setup_tracing
 
 
@@ -62,13 +65,14 @@ async def main():
 
     # Create and run the worker.
     # The worker is configured with the client, the task queue it should listen on,
-    # and the list of workflows it is capable of executing.
+    # the list of workflows it is capable of executing, and all activities it
+    # might be asked to run.
     log.info("Starting worker", task_queue=task_queue)
     worker = Worker(
         client,
         task_queue=task_queue,
         workflows=[FlexibleCaseWorkflow],
-        activities=[enrich_case_data],
+        activities=[enrich_case_data, load_process_definition],
         interceptors=[TracingInterceptor()],
     )
 
