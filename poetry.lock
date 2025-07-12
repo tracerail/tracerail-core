@@ -1906,6 +1906,18 @@ pure-eval = "*"
 tests = ["cython", "littleutils", "pygments", "pytest", "typeguard"]
 
 [[package]]
+name = "structlog"
+version = "25.4.0"
+description = "Structured Logging for Python"
+optional = false
+python-versions = ">=3.8"
+groups = ["main"]
+files = [
+    {file = "structlog-25.4.0-py3-none-any.whl", hash = "sha256:fe809ff5c27e557d14e613f45ca441aabda051d119ee5a0102aaba6ce40eed2c"},
+    {file = "structlog-25.4.0.tar.gz", hash = "sha256:186cd1b0a8ae762e29417095664adf1d6a31702160a46dacb7796ea82f7409e4"},
+]
+
+[[package]]
 name = "temporalio"
 version = "1.13.0"
 description = "Temporal.io Python SDK"
@@ -2102,4 +2114,4 @@ anthropic = ["anthropic"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "9bb931e9bd72ac61931c7d243f968dd0ed54e3470a635861f99cfc600fcd8ccb"
+content-hash = "aa4b9b03857332146e5f903cd753f559650bd0e033edb49c4eb68eb6ba30193a"

@@ -9,7 +9,7 @@ that requires tracking and potential human interaction.
 from datetime import datetime
 from typing import List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 from temporalio.client import Client, WorkflowHandle
 from temporalio.service import RPCError
 
@@ -75,7 +75,7 @@ class Case(BaseModel):
     """
     caseDetails: CaseDetails
     activityStream: List[ActivityStreamItem]
-    activeInteraction: ActiveInteraction
+    activeInteraction: Optional[ActiveInteraction]
 
 
 # --- Service Layer for Case Management ---
@@ -100,36 +100,48 @@ class CaseService:
 
     async def get_by_id(self, case_id: str) -> Optional[Case]:
         """
-        Retrieves a single case by querying its running workflow execution.
-
-        Args:
-            case_id: The ID of the case, which corresponds to the workflow_id.
-
-        Returns:
-            A `Case` object if a running workflow with that ID is found and
-            successfully queried, otherwise `None`.
+        Retrieves a single case by its ID. It first tries to query a running
+        workflow. If that fails because the workflow is not found (e.g., it has
+        already completed), it attempts to fetch the final result from history.
         """
-        print(f"[Core Service] Attempting to query workflow with ID: {case_id}")
+        handle = self.client.get_workflow_handle(case_id)
         try:
-            # Get a handle to the workflow. The workflow_id is our case_id.
-            handle: WorkflowHandle = self.client.get_workflow_handle(case_id)
+            # First, try to query the running workflow.
+            print(f"[Core Service] Attempting to query active workflow: {case_id}")
+            result_dict = await handle.query("get_current_state")
 
-            # Execute the "get_current_state" query against the workflow.
-            # The result is automatically deserialized by Temporal into the
-            # return type hint of the query method (which is our Case model).
-            result = await handle.query("get_current_state")
+            if result_dict:
+                try:
+                    validated_case = Case.model_validate(result_dict)
+                    print(f"[Core Service] Successfully retrieved state via query for case: {case_id}")
+                    return validated_case
+                except ValidationError as e:
+                    print(f"[Core Service] ERROR: Pydantic validation failed for active case {case_id}: {e}")
+                    return None
 
-            if isinstance(result, Case):
-                print(f"[Core Service] Successfully retrieved state for case: {case_id}")
-                return result
-            else:
-                # This case should ideally not be hit if the workflow query
-                # is correctly type-hinted, but it's a good safeguard.
-                print(f"[Core Service] ERROR: Query for case {case_id} returned unexpected type: {type(result)}")
-                return None
+            print(f"[Core Service] WARN: Active query for case {case_id} returned no data.")
+            return None
 
         except RPCError as e:
-            # This is a common error, e.g., if the workflow doesn't exist.
-            # We log it and return None to the caller.
-            print(f"[Core Service] ERROR: RPC error while querying case {case_id}: {e.message}")
+            # If a 'not found' error occurs, the workflow might be complete.
+            if e.status and e.status.name == 'NOT_FOUND':
+                print(f"[Core Service] Workflow not queryable. Attempting to fetch result from history for case: {case_id}")
+                try:
+                    # This relies on the workflow returning its final state.
+                    result = await handle.result()
+                    if isinstance(result, Case):
+                        print(f"[Core Service] Successfully retrieved 'Case' object result for completed case: {case_id}")
+                        return result
+                    elif isinstance(result, dict):
+                        print(f"[Core Service] Successfully retrieved 'dict' result for completed case: {case_id}")
+                        return Case.model_validate(result)
+
+                    print(f"[Core Service] Completed workflow {case_id} did not return a readable state.")
+                    return None
+                except Exception as hist_e:
+                    print(f"[Core Service] ERROR: Could not fetch result for completed workflow {case_id}: {hist_e}")
+                    return None
+
+            # For any other RPC error, log and return None.
+            print(f"[Core Service] ERROR: Unexpected RPC error for case {case_id}: {e.message}")
             return None

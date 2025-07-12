@@ -43,6 +43,7 @@ pydantic-settings = "^2.3.4"
 
 # Optional dependencies for specific providers/features
 anthropic = { version = "^0.25.0", optional = true }
+structlog = "^25.4.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.2.0"

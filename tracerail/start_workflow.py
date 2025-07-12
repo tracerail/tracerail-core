@@ -7,7 +7,6 @@ on the client, providing the necessary arguments to begin a new case.
 
 import asyncio
 import os
-import uuid
 from typing import Any, Dict
 
 from temporalio.client import Client
@@ -28,8 +27,8 @@ async def main():
     target = f"{host}:{port}"
 
     # Define the parameters for our new workflow.
-    # We will generate a unique ID for each case using UUID.
-    case_id = f"ER-{uuid.uuid4()}"
+    # We use a hardcoded ID here to ensure it matches what the frontend expects.
+    case_id = "ER-2024-08-124"
     process_name = "expense_approval"
     process_version = "1.0.0"
 
