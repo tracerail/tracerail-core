@@ -12,10 +12,12 @@ import structlog
 
 from temporalio.client import Client
 from temporalio.worker import Worker
+from temporalio.contrib.opentelemetry import TracingInterceptor
 
 # Import the workflow that this worker will run.
 from tracerail.workflows.flexible_case_workflow import FlexibleCaseWorkflow
 from tracerail.activities.case_activities import enrich_case_data
+from tracerail.tracing import setup_tracing
 
 
 # --- Structured Logging Setup ---
@@ -35,6 +37,9 @@ async def main():
     """
     The main entry point for the worker process.
     """
+    # Configure OpenTelemetry Tracing on startup
+    setup_tracing("tracerail-core")
+
     # Get Temporal connection details from environment variables with defaults.
     host = os.getenv("TEMPORAL_HOST", "localhost")
     port = int(os.getenv("TEMPORAL_PORT", 7233))
@@ -44,9 +49,13 @@ async def main():
 
     log.info("Connecting to Temporal service", target=target)
     try:
-        # Create a client to connect to the Temporal service.
-        client = await Client.connect(target, namespace=namespace)
-        log.info("Successfully connected to Temporal.")
+        # Create a client with the tracing interceptor
+        client = await Client.connect(
+            target,
+            namespace=namespace,
+            interceptors=[TracingInterceptor()],
+        )
+        log.info("Successfully connected to Temporal with tracing.")
     except Exception as e:
         log.error("Failed to connect to Temporal", error=str(e))
         return
@@ -60,6 +69,7 @@ async def main():
         task_queue=task_queue,
         workflows=[FlexibleCaseWorkflow],
         activities=[enrich_case_data],
+        interceptors=[TracingInterceptor()],
     )
 
     try:
